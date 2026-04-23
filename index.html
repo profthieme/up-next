@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0A0F1C" />
+  <title>Up Next · Family Watchlist</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Up Next" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #0A0F1C;
+      --surface: #141B2E;
+      --surface-2: #1D2640;
+      --border: #2B3554;
+      --text: #ECF0F7;
+      --text-muted: #8891A8;
+      --accent: #5B9BF0;
+      --accent-dim: #3B7AC7;
+      --font-display: 'Fraunces', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: var(--bg);
+      background-image: radial-gradient(circle at 20% 0%, rgba(91, 155, 240, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 100%, rgba(140, 170, 220, 0.04) 0%, transparent 45%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button { cursor: pointer; border: none; background: none; padding: 0; font-family: inherit; color: inherit; font-size: inherit; }
+    button:disabled { cursor: default; }
+    input { font-family: inherit; }
+    input:focus { outline: none; border-color: var(--accent) !important; }
+    a { color: var(--accent); text-decoration: none; }
+    ::selection { background: var(--accent); color: var(--bg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .spin { animation: spin 1s linear infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+
+  <!-- Firebase SDK (compat build so it works with Babel standalone) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ---------- Icon components (inline SVG) ----------
+    const Icon = ({ children, size = 16, fill = "none", color, style = {}, strokeWidth = 2, ...rest }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color || "currentColor"}
+           strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style} {...rest}>
+        {children}
+      </svg>
+    );
+    const Search = (p) => <Icon {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></Icon>;
+    const Plus = (p) => <Icon {...p}><path d="M5 12h14M12 5v14"/></Icon>;
+    const User = (p) => <Icon {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></Icon>;
+    const Film = (p) => <Icon {...p}><rect width="20" height="20" x="2" y="2" rx="2.18" ry="2.18"/><line x1="7" x2="7" y1="2" y2="22"/><line x1="17" x2="17" y1="2" y2="22"/><line x1="2" x2="22" y1="12" y2="12"/><line x1="2" x2="7" y1="7" y2="7"/><line x1="2" x2="7" y1="17" y2="17"/><line x1="17" x2="22" y1="17" y2="17"/><line x1="17" x2="22" y1="7" y2="7"/></Icon>;
+    const Tv = (p) => <Icon {...p}><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></Icon>;
+    const Star = (p) => <Icon {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></Icon>;
+    const ExternalLink = (p) => <Icon {...p}><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></Icon>;
+    const X = (p) => <Icon {...p}><path d="M18 6 6 18M6 6l12 12"/></Icon>;
+    const ChevronUp = (p) => <Icon {...p}><path d="m18 15-6-6-6 6"/></Icon>;
+    const ChevronDown = (p) => <Icon {...p}><path d="m6 9 6 6 6-6"/></Icon>;
+    const Trash2 = (p) => <Icon {...p}><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></Icon>;
+    const ListIcon = (p) => <Icon {...p}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></Icon>;
+    const ArrowLeft = (p) => <Icon {...p}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></Icon>;
+    const Loader2 = (p) => <Icon {...p}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></Icon>;
+    const Check = (p) => <Icon {...p}><path d="M20 6 9 17l-5-5"/></Icon>;
+    const UserPlus = (p) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></Icon>;
+    const Edit2 = (p) => <Icon {...p}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></Icon>;
+    const MoreVertical = (p) => <Icon {...p}><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></Icon>;
+    const RefreshCw = (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>;
+    const Copy = (p) => <Icon {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></Icon>;
+
+    // ---------- Constants ----------
+    const TMDB_KEY = '704b79cba085af63c0a47f249be40414';
+    const TMDB_BASE = 'https://api.themoviedb.org/3';
+    const IMG_BASE = 'https://image.tmdb.org/t/p';
+    const REGION = 'US';
+    const STORAGE_KEY = 'reel_watchlist_data_v1';
+    // OMDb provides real IMDb ratings. Left empty means the app falls back to the TMDB rating.
+    const OMDB_KEY = '5309ead3';
+
+    const DEFAULT_DATA = { profiles: [], currentProfileId: null, lists: [], items: [] };
+    const PROFILE_COLORS = ['#E8A04E', '#7FB5A1', '#D46A6A', '#8C94C7', '#C69F6B', '#B4A7D6', '#C5874C', '#6B9BA8'];
+
+    // ---------- Firebase init ----------
+    const firebaseConfig = {
+      apiKey: "AIzaSyCdy7sKfMXEJaDIcXuYrKhCprkiOW9CJCA",
+      authDomain: "tfamily-watchlists.firebaseapp.com",
+      projectId: "tfamily-watchlists",
+      storageBucket: "tfamily-watchlists.firebasestorage.app",
+      messagingSenderId: "751509507467",
+      appId: "1:751509507467:web:7ebfe1f9d93b8f1fc5738e"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const docRef = db.collection('families').doc('shared');
+
+    // ---------- Storage (Firestore + one-time migration from localStorage) ----------
+    // Firestore rejects any value that's `undefined` anywhere in the payload.
+    // TMDB returns different fields for movies vs TV (e.g. number_of_seasons),
+    // so some fields come through undefined. Strip them before every write.
+    function stripUndefined(value) {
+      if (Array.isArray(value)) return value.map(stripUndefined);
+      if (value && typeof value === 'object' && value.constructor === Object) {
+        const out = {};
+        for (const [k, v] of Object.entries(value)) {
+          if (v !== undefined) out[k] = stripUndefined(v);
+        }
+        return out;
+      }
+      return value;
+    }
+
+    // Reads the old Phase-1 data out of localStorage (only used for migration).
+    function loadLocalData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) { console.error('Local load failed', e); }
+      return null;
+    }
+
+    // Simple pub/sub so the UI can react to Firestore save errors.
+    const statusListeners = new Set();
+    function onSaveStatus(fn) { statusListeners.add(fn); return () => statusListeners.delete(fn); }
+    function emitSaveStatus(ev) { statusListeners.forEach(fn => fn(ev)); }
+
+    // Writes are debounced so rapid changes don't hammer Firestore.
+    let saveTimer = null;
+    let pendingData = null;
+    function saveData(data) {
+      pendingData = data;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const toSave = pendingData;
+        pendingData = null;
+        docRef.set(stripUndefined(toSave))
+          .then(() => emitSaveStatus({ type: 'ok' }))
+          .catch(e => {
+            console.error('Save failed:', e);
+            emitSaveStatus({ type: 'error', message: e.message || String(e) });
+          });
+      }, 400);
+    }
+
+    // Subscribes to the shared family document and calls onData whenever it changes.
+    function subscribeToData(onData, onError) {
+      return docRef.onSnapshot(
+        snapshot => { onData(snapshot.exists ? snapshot.data() : null); },
+        err => { console.error('Firestore listen error:', err); onError(err); }
+      );
+    }
+
+    // ---------- TMDB API ----------
+    async function tmdbSearch(query) {
+      const url = `${TMDB_BASE}/search/multi?api_key=${TMDB_KEY}&query=${encodeURIComponent(query)}&include_adult=false`;
+      let res;
+      try { res = await fetch(url); }
+      catch (e) { throw new Error(`Couldn't reach TMDB. Check your internet connection.`); }
+      if (!res.ok) {
+        let body = '';
+        try { body = await res.text(); } catch (_) {}
+        throw new Error(`TMDB error ${res.status}: ${body.slice(0, 200) || res.statusText}`);
+      }
+      const data = await res.json();
+      return (data.results || []).filter(r =>
+        (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path
+      );
+    }
+    async function tmdbDetails(id, type) {
+      const url = `${TMDB_BASE}/${type}/${id}?api_key=${TMDB_KEY}&append_to_response=watch/providers,external_ids`;
+      let res;
+      try { res = await fetch(url); }
+      catch (e) { throw new Error(`Couldn't reach TMDB. Check your internet connection.`); }
+      if (!res.ok) throw new Error(`TMDB error ${res.status}`);
+      return await res.json();
+    }
+
+    // Look up the real IMDb rating by imdbId.
+    // Returns { ok: boolean, rating: number|null, reason: string|null }.
+    async function omdbRating(imdbId) {
+      if (!imdbId) return { ok: false, rating: null, reason: 'no imdbId on item' };
+      if (!OMDB_KEY || OMDB_KEY === '__OMDB_KEY_PLACEHOLDER__') {
+        return { ok: false, rating: null, reason: 'no OMDb key configured' };
+      }
+      let res;
+      try { res = await fetch(`https://www.omdbapi.com/?apikey=${OMDB_KEY}&i=${encodeURIComponent(imdbId)}`); }
+      catch (e) { return { ok: false, rating: null, reason: `network: ${e.message || e}` }; }
+      if (!res.ok) return { ok: false, rating: null, reason: `HTTP ${res.status}` };
+      let data;
+      try { data = await res.json(); }
+      catch (e) { return { ok: false, rating: null, reason: 'bad JSON from OMDb' }; }
+      if (data.Response === 'False') {
+        return { ok: false, rating: null, reason: data.Error || 'OMDb said "False"' };
+      }
+      const r = parseFloat(data.imdbRating);
+      if (!Number.isFinite(r)) {
+        return { ok: false, rating: null, reason: `imdbRating="${data.imdbRating}"` };
+      }
+      return { ok: true, rating: r, reason: null };
+    }
+    function normalizeItem(tmdbData, type) {
+      const title = tmdbData.title || tmdbData.name || 'Unknown';
+      const dateStr = tmdbData.release_date || tmdbData.first_air_date || '';
+      const year = dateStr ? new Date(dateStr).getFullYear() : null;
+      const providers = (tmdbData['watch/providers'] && tmdbData['watch/providers'].results && tmdbData['watch/providers'].results[REGION]) || {};
+      const movieRuntime = tmdbData.runtime;
+      const tvRuntime = Array.isArray(tmdbData.episode_run_time) ? tmdbData.episode_run_time[0] : null;
+      return {
+        tmdbId: tmdbData.id,
+        type,
+        title,
+        year,
+        posterPath: tmdbData.poster_path || null,
+        backdropPath: tmdbData.backdrop_path || null,
+        overview: tmdbData.overview || '',
+        voteAverage: tmdbData.vote_average != null ? tmdbData.vote_average : null,
+        imdbId: (tmdbData.external_ids && tmdbData.external_ids.imdb_id) || tmdbData.imdb_id || null,
+        runtime: movieRuntime || tvRuntime || null,
+        numSeasons: tmdbData.number_of_seasons || null,
+        genres: (tmdbData.genres || []).map(g => g.name),
+        watchProviders: {
+          flatrate: providers.flatrate || [],
+          rent: providers.rent || [],
+          buy: providers.buy || [],
+          link: providers.link || null,
+        },
+        updatedAt: Date.now(),
+      };
+    }
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+    // ---------- Main App ----------
+    function App() {
+      const [data, setData] = useState(null);          // null = still loading
+      const [error, setError] = useState(null);
+      const [saveError, setSaveError] = useState(null);
+      const [tab, setTab] = useState('lists');
+      const [openListId, setOpenListId] = useState(null);
+      const [openItemId, setOpenItemId] = useState(null);
+      const [toast, setToast] = useState(null);
+
+      // Listen for save failures and surface them.
+      useEffect(() => {
+        return onSaveStatus(ev => {
+          if (ev.type === 'error') setSaveError(ev.message);
+          else if (ev.type === 'ok') setSaveError(null);
+        });
+      }, []);
+
+      // Subscribe to Firestore on mount; migrate localStorage data on first run.
+      useEffect(() => {
+        let migrated = false;
+        const unsub = subscribeToData(
+          async (firestoreData) => {
+            if (firestoreData) {
+              setData(firestoreData);
+              return;
+            }
+            // Firestore doc doesn't exist yet.
+            if (migrated) return;
+            migrated = true;
+            const local = loadLocalData();
+            const hasLocalContent = local && (
+              (local.profiles && local.profiles.length > 0) ||
+              (local.lists && local.lists.length > 0) ||
+              (local.items && local.items.length > 0)
+            );
+            if (hasLocalContent) {
+              // Upload local data to Firestore; onSnapshot will then fire with it.
+              try { await docRef.set(stripUndefined(local)); }
+              catch (e) { setError('Could not upload your existing data: ' + e.message); }
+            } else {
+              setData({ ...DEFAULT_DATA });
+            }
+          },
+          (err) => { setError('Could not connect to the database: ' + err.message); }
+        );
+        return () => unsub();
+      }, []);
+
+      const update = useCallback((updater) => {
+        setData(prev => {
+          if (!prev) return prev;
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveData(next);
+          return next;
+        });
+      }, []);
+
+      // Swipe-to-go-back: a horizontal swipe in either direction acts like the back button.
+      // Ignore swipes that start near the screen edges so we don't fight the OS's own gestures.
+      // Back hierarchy: item detail → list view → non-lists tab → My Lists (root; do nothing).
+      const navRef = useRef({ openItemId: null, openListId: null, tab: 'lists' });
+      useEffect(() => {
+        navRef.current = { openItemId, openListId, tab };
+      }, [openItemId, openListId, tab]);
+
+      useEffect(() => {
+        const EDGE_EXCLUSION = 30;   // px from each screen edge
+        const MIN_DISTANCE   = 70;   // px — min horizontal swipe distance
+        const MAX_DURATION   = 600;  // ms — must be a quick swipe, not a slow drag
+        const H_V_RATIO      = 1.8;  // horizontal must dominate vertical by this much
+
+        let startX = 0, startY = 0, startTime = 0, tracking = false;
+
+        const onStart = (e) => {
+          if (e.touches.length !== 1) { tracking = false; return; }
+          const t = e.touches[0];
+          const w = window.innerWidth;
+          // Only start tracking if the finger lands away from the edges.
+          if (t.clientX < EDGE_EXCLUSION || t.clientX > w - EDGE_EXCLUSION) { tracking = false; return; }
+          startX = t.clientX;
+          startY = t.clientY;
+          startTime = Date.now();
+          tracking = true;
+        };
+        const onEnd = (e) => {
+          if (!tracking) return;
+          tracking = false;
+          const t = e.changedTouches[0];
+          const dx = t.clientX - startX;
+          const dy = t.clientY - startY;
+          const adx = Math.abs(dx);
+          const ady = Math.abs(dy);
+          const dt = Date.now() - startTime;
+          if (adx < MIN_DISTANCE) return;
+          if (dt > MAX_DURATION) return;
+          if (adx < ady * H_V_RATIO) return;  // too vertical, probably a scroll
+          // Valid horizontal swipe — go back one level.
+          const nav = navRef.current;
+          if (nav.openItemId) setOpenItemId(null);
+          else if (nav.openListId) setOpenListId(null);
+          else if (nav.tab !== 'lists') setTab('lists');
+          // At My Lists root: do nothing. The phone's own home gesture still closes the PWA.
+        };
+        window.addEventListener('touchstart', onStart, { passive: true });
+        window.addEventListener('touchend', onEnd, { passive: true });
+        return () => {
+          window.removeEventListener('touchstart', onStart);
+          window.removeEventListener('touchend', onEnd);
+        };
+      }, []);
+
+      const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2000); };
+
+      // Loading + error screens
+      if (error) {
+        return (
+          <div style={{padding: 40, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+            <div style={{fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--text)', marginBottom: 12}}>Something went wrong</div>
+            <div style={{color: '#E57373', maxWidth: 340, lineHeight: 1.5, marginBottom: 20}}>{error}</div>
+            <button onClick={() => location.reload()} style={{...styles.primaryBtn, maxWidth: 200}}>Try again</button>
+          </div>
+        );
+      }
+      if (data === null) {
+        return (
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh'}}>
+            <Loader2 size={28} className="spin" color="var(--accent)" />
+          </div>
+        );
+      }
+
+      if (data.profiles.length === 0) {
+        return <WelcomeScreen onCreate={(name) => {
+          const p = { id: uid(), name, color: PROFILE_COLORS[0], createdAt: Date.now() };
+          update(d => ({ ...d, profiles: [p], currentProfileId: p.id }));
+        }} />;
+      }
+
+      if (!data.currentProfileId || !data.profiles.find(p => p.id === data.currentProfileId)) {
+        return <ProfilePicker
+          profiles={data.profiles}
+          onPick={(id) => update(d => ({ ...d, currentProfileId: id }))}
+          onAdd={(name) => {
+            const color = PROFILE_COLORS[data.profiles.length % PROFILE_COLORS.length];
+            const p = { id: uid(), name, color, createdAt: Date.now() };
+            update(d => ({ ...d, profiles: [...d.profiles, p], currentProfileId: p.id }));
+          }}
+        />;
+      }
+
+      const currentProfile = data.profiles.find(p => p.id === data.currentProfileId);
+      const myLists = data.lists
+        .filter(l => l.profileId === currentProfile.id)
+        .map((l, i) => ({ ...l, position: l.position ?? i * 1000 }))
+        .sort((a, b) => a.position - b.position);
+      const openList = openListId ? data.lists.find(l => l.id === openListId) : null;
+      const openItem = openItemId ? data.items.find(i => i.id === openItemId) : null;
+
+      return (
+        <div style={styles.app}>
+          <TopBar
+            profile={currentProfile}
+            title={openList ? openList.name : tabTitle(tab)}
+            showBack={!!openList}
+            onBack={() => setOpenListId(null)}
+          />
+          {saveError && (
+            <div style={styles.saveErrorBanner}>
+              <div style={{flex: 1, minWidth: 0}}>
+                <div style={{fontWeight: 600, marginBottom: 2}}>Changes aren't syncing</div>
+                <div style={{fontSize: 12, opacity: 0.9, wordBreak: 'break-word'}}>{saveError}</div>
+              </div>
+              <button onClick={() => setSaveError(null)} style={{...styles.iconBtn, color: 'inherit', flexShrink: 0}}><X size={16} /></button>
+            </div>
+          )}
+          <div style={styles.main}>
+            {openList ? (
+              <ListDetailView
+                list={openList}
+                items={data.items.filter(i => i.listId === openList.id).sort((a, b) => a.position - b.position)}
+                onOpenItem={(id) => setOpenItemId(id)}
+                onReorder={(itemId, dir) => {
+                  update(d => {
+                    const listItems = d.items.filter(i => i.listId === openList.id).sort((a, b) => a.position - b.position);
+                    const idx = listItems.findIndex(i => i.id === itemId);
+                    const newIdx = dir === 'up' ? idx - 1 : idx + 1;
+                    if (newIdx < 0 || newIdx >= listItems.length) return d;
+                    const reordered = [...listItems];
+                    [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
+                    const posMap = {};
+                    reordered.forEach((it, i) => { posMap[it.id] = i; });
+                    return { ...d, items: d.items.map(i => posMap.hasOwnProperty(i.id) ? { ...i, position: posMap[i.id] } : i) };
+                  });
+                }}
+                onRename={(newName) => {
+                  update(d => ({ ...d, lists: d.lists.map(l => l.id === openList.id ? { ...l, name: newName } : l) }));
+                }}
+                onDelete={() => {
+                  update(d => ({
+                    ...d,
+                    lists: d.lists.filter(l => l.id !== openList.id),
+                    items: d.items.filter(i => i.listId !== openList.id),
+                  }));
+                  setOpenListId(null);
+                  flash('List deleted');
+                }}
+              />
+            ) : tab === 'lists' ? (
+              <ListsTab
+                lists={myLists}
+                items={data.items}
+                onOpenList={setOpenListId}
+                onCreate={(name) => {
+                  const maxPos = myLists.reduce((m, l) => Math.max(m, l.position ?? 0), -1);
+                  const list = { id: uid(), profileId: currentProfile.id, name, position: maxPos + 1, createdAt: Date.now() };
+                  update(d => ({ ...d, lists: [...d.lists, list] }));
+                  flash(`Created "${name}"`);
+                }}
+                onReorder={(listId, dir) => {
+                  update(d => {
+                    const sorted = d.lists
+                      .filter(l => l.profileId === currentProfile.id)
+                      .map((l, i) => ({ ...l, position: l.position ?? i * 1000 }))
+                      .sort((a, b) => a.position - b.position);
+                    const idx = sorted.findIndex(l => l.id === listId);
+                    const newIdx = dir === 'up' ? idx - 1 : idx + 1;
+                    if (newIdx < 0 || newIdx >= sorted.length) return d;
+                    const reordered = [...sorted];
+                    [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
+                    const posMap = {};
+                    reordered.forEach((l, i) => { posMap[l.id] = i; });
+                    return { ...d, lists: d.lists.map(l => posMap.hasOwnProperty(l.id) ? { ...l, position: posMap[l.id] } : l) };
+                  });
+                }}
+              />
+            ) : tab === 'search' ? (
+              <SearchTab
+                myLists={myLists}
+                onAdd={async (tmdbResult, listId) => {
+                  // Don't add the same TMDB entry to a list twice.
+                  const alreadyInList = data.items.some(i =>
+                    i.listId === listId &&
+                    i.tmdbId === tmdbResult.id &&
+                    i.type === tmdbResult.media_type
+                  );
+                  if (alreadyInList) {
+                    const list = data.lists.find(l => l.id === listId);
+                    flash(`Already on "${list?.name}"`);
+                    return;
+                  }
+                  try {
+                    const details = await tmdbDetails(tmdbResult.id, tmdbResult.media_type);
+                    const normalized = normalizeItem(details, tmdbResult.media_type);
+                    // Fire-and-forget IMDb rating lookup — don't block adding on it.
+                    const ratingResult = await omdbRating(normalized.imdbId);
+                    if (ratingResult.ok) normalized.imdbRating = ratingResult.rating;
+                    else console.warn('OMDb rating unavailable:', ratingResult.reason);
+                    const currentItems = data.items.filter(i => i.listId === listId);
+                    const newItem = { id: uid(), listId, position: currentItems.length, addedAt: Date.now(), ...normalized };
+                    update(d => ({ ...d, items: [...d.items, newItem] }));
+                    const list = data.lists.find(l => l.id === listId);
+                    flash(`Added to "${list?.name}"`);
+                  } catch (e) {
+                    flash('Failed to add — try again');
+                  }
+                }}
+                onCreateList={(name) => {
+                  const maxPos = myLists.reduce((m, l) => Math.max(m, l.position ?? 0), -1);
+                  const list = { id: uid(), profileId: currentProfile.id, name, position: maxPos + 1, createdAt: Date.now() };
+                  update(d => ({ ...d, lists: [...d.lists, list] }));
+                  return list.id;
+                }}
+              />
+            ) : (
+              <ProfileTab
+                profiles={data.profiles}
+                current={currentProfile}
+                onSwitch={(id) => update(d => ({ ...d, currentProfileId: id }))}
+                onAdd={(name) => {
+                  const color = PROFILE_COLORS[data.profiles.length % PROFILE_COLORS.length];
+                  const p = { id: uid(), name, color, createdAt: Date.now() };
+                  update(d => ({ ...d, profiles: [...d.profiles, p] }));
+                  flash(`Profile "${name}" added`);
+                }}
+                onRename={(id, name) => {
+                  update(d => ({ ...d, profiles: d.profiles.map(p => p.id === id ? { ...p, name } : p) }));
+                }}
+                onDelete={(id) => {
+                  const profileLists = data.lists.filter(l => l.profileId === id);
+                  const listIds = new Set(profileLists.map(l => l.id));
+                  update(d => ({
+                    ...d,
+                    profiles: d.profiles.filter(p => p.id !== id),
+                    lists: d.lists.filter(l => l.profileId !== id),
+                    items: d.items.filter(i => !listIds.has(i.listId)),
+                    currentProfileId: d.currentProfileId === id ? (d.profiles.find(p => p.id !== id)?.id || null) : d.currentProfileId,
+                  }));
+                  flash('Profile deleted');
+                }}
+              />
+            )}
+          </div>
+          <BottomNav tab={tab} onChange={(t) => { setTab(t); setOpenListId(null); }} />
+
+          {openItem && (
+            <ItemDetailModal
+              item={openItem}
+              myLists={myLists}
+              onClose={() => setOpenItemId(null)}
+              onBackgroundRefresh={async () => {
+                try {
+                  const details = await tmdbDetails(openItem.tmdbId, openItem.type);
+                  const normalized = normalizeItem(details, openItem.type);
+                  const ratingResult = await omdbRating(normalized.imdbId);
+                  if (ratingResult.ok) normalized.imdbRating = ratingResult.rating;
+                  else normalized.imdbRating = null;
+                  update(d => ({ ...d, items: d.items.map(i => i.id === openItem.id ? { ...i, ...normalized } : i) }));
+                } catch (e) {
+                  console.warn('Auto-refresh failed:', e);
+                }
+              }}
+              onRemove={() => {
+                update(d => ({ ...d, items: d.items.filter(i => i.id !== openItem.id) }));
+                setOpenItemId(null);
+                flash('Removed');
+              }}
+              onCopyToList={(targetListId) => {
+                const alreadyThere = data.items.some(i =>
+                  i.listId === targetListId &&
+                  i.tmdbId === openItem.tmdbId &&
+                  i.type === openItem.type
+                );
+                const targetList = data.lists.find(l => l.id === targetListId);
+                if (alreadyThere) {
+                  flash(`Already on "${targetList?.name}"`);
+                  return;
+                }
+                const targetCount = data.items.filter(i => i.listId === targetListId).length;
+                const { id: _oldId, listId: _oldListId, position: _oldPos, addedAt: _oldAdded, ...rest } = openItem;
+                const copy = { ...rest, id: uid(), listId: targetListId, position: targetCount, addedAt: Date.now() };
+                update(d => ({ ...d, items: [...d.items, copy] }));
+                flash(`Copied to "${targetList?.name}"`);
+              }}
+            />
+          )}
+
+          {toast && <div style={styles.toast}>{toast}</div>}
+        </div>
+      );
+    }
+
+    function tabTitle(tab) {
+      if (tab === 'lists') return 'My Lists';
+      if (tab === 'search') return 'Find Something';
+      return 'Profile';
+    }
+
+    // ---------- Welcome / Profile Picker ----------
+    function WelcomeScreen({ onCreate }) {
+      const [name, setName] = useState('');
+      return (
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '32px 24px', flexDirection: 'column'}}>
+          <div style={{textAlign: 'center', marginBottom: 48}}>
+            <div style={{fontFamily: 'var(--font-display)', fontSize: 48, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 12, color: 'var(--text)'}}>Up Next</div>
+            <div style={{fontFamily: 'var(--font-display)', fontSize: 20, fontStyle: 'italic', color: 'var(--accent)', letterSpacing: '0.02em'}}>your family's watchlist</div>
+          </div>
+          <div style={{width: '100%', maxWidth: 340}}>
+            <label style={styles.label}>What should I call you?</label>
+            <input autoFocus value={name} onChange={e => setName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onCreate(name.trim()); }}
+              placeholder="Your name" style={styles.input} />
+            <button disabled={!name.trim()} onClick={() => onCreate(name.trim())}
+              style={{...styles.primaryBtn, opacity: name.trim() ? 1 : 0.5, marginTop: 16}}>
+              Get started
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function ProfilePicker({ profiles, onPick, onAdd }) {
+      const [adding, setAdding] = useState(false);
+      const [name, setName] = useState('');
+      return (
+        <div style={{padding: '40px 24px', minHeight: '100vh'}}>
+          <div style={{fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 500, marginBottom: 8, color: 'var(--text)'}}>Who's watching?</div>
+          <div style={{color: 'var(--text-muted)', marginBottom: 32}}>Pick your profile</div>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 16}}>
+            {profiles.map(p => (
+              <button key={p.id} onClick={() => onPick(p.id)} style={styles.profileTile}>
+                <div style={{...styles.avatar, backgroundColor: p.color, width: 72, height: 72, fontSize: 28}}>
+                  {p.name[0].toUpperCase()}
+                </div>
+                <div style={{marginTop: 12, fontSize: 15, fontWeight: 500, color: 'var(--text)'}}>{p.name}</div>
+              </button>
+            ))}
+            <button onClick={() => setAdding(true)} style={{...styles.profileTile, opacity: 0.7}}>
+              <div style={{...styles.avatar, background: 'transparent', border: '2px dashed var(--border)', width: 72, height: 72}}>
+                <Plus size={28} color="var(--text-muted)" />
+              </div>
+              <div style={{marginTop: 12, fontSize: 15, color: 'var(--text-muted)'}}>Add profile</div>
+            </button>
+          </div>
+          {adding && (
+            <Modal onClose={() => setAdding(false)} title="New profile">
+              <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={styles.input} />
+              <button onClick={() => { if (name.trim()) { onAdd(name.trim()); setAdding(false); setName(''); } }}
+                style={{...styles.primaryBtn, marginTop: 12}}>Create</button>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    // ---------- Top Bar / Bottom Nav ----------
+    function TopBar({ profile, title, showBack, onBack }) {
+      return (
+        <div style={styles.topBar}>
+          {showBack ? (
+            <button onClick={onBack} style={styles.iconBtn}><ArrowLeft size={20} /></button>
+          ) : (
+            <div style={{...styles.avatar, width: 32, height: 32, fontSize: 14, backgroundColor: profile.color}}>
+              {profile.name[0].toUpperCase()}
+            </div>
+          )}
+          <div style={{fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 500, flex: 1, textAlign: 'center', color: 'var(--text)'}}>
+            {title}
+          </div>
+          <div style={{width: 32}} />
+        </div>
+      );
+    }
+
+    function BottomNav({ tab, onChange }) {
+      const items = [
+        { id: 'lists', icon: ListIcon, label: 'Lists' },
+        { id: 'search', icon: Search, label: 'Search' },
+        { id: 'profile', icon: User, label: 'Profile' },
+      ];
+      return (
+        <div style={styles.bottomNav}>
+          {items.map(item => {
+            const IconComp = item.icon;
+            const active = tab === item.id;
+            return (
+              <button key={item.id} onClick={() => onChange(item.id)} style={styles.navBtn}>
+                <IconComp size={22} color={active ? 'var(--accent)' : 'var(--text-muted)'} />
+                <span style={{fontSize: 11, marginTop: 4, color: active ? 'var(--accent)' : 'var(--text-muted)', fontWeight: active ? 600 : 400}}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // ---------- Lists Tab ----------
+    function ListsTab({ lists, items, onOpenList, onCreate, onReorder }) {
+      const [creating, setCreating] = useState(false);
+      const [name, setName] = useState('');
+      return (
+        <div style={{padding: '16px 16px 24px'}}>
+          {lists.length === 0 ? (
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', padding: '60px 20px', textAlign: 'center'}}>
+              <ListIcon size={40} color="var(--text-muted)" style={{opacity: 0.5, marginBottom: 16}} />
+              <div style={{fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--text)', marginBottom: 8}}>No lists yet</div>
+              <div style={{color: 'var(--text-muted)', maxWidth: 280, marginBottom: 24}}>Create your first list — something like "Watch with the family" or "Documentaries"</div>
+              <button onClick={() => setCreating(true)} style={styles.primaryBtn}>Create a list</button>
+            </div>
+          ) : (
+            <>
+              {lists.map((list, idx) => {
+                const listItems = items.filter(i => i.listId === list.id).sort((a, b) => a.position - b.position);
+                const isFirst = idx === 0;
+                const isLast = idx === lists.length - 1;
+                return (
+                  <div key={list.id} style={{display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 12}}>
+                    <button onClick={() => onOpenList(list.id)} style={{...styles.listCard, marginBottom: 0, flex: 1}}>
+                      <div style={{display: 'flex', gap: 8, marginBottom: 12, minHeight: 80}}>
+                        {listItems.slice(0, 4).map(it => (
+                          <div key={it.id} style={{flex: 1, aspectRatio: '2/3', borderRadius: 4, overflow: 'hidden', background: 'var(--surface-2)'}}>
+                            {it.posterPath ? (
+                              <img src={`${IMG_BASE}/w200${it.posterPath}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                            ) : null}
+                          </div>
+                        ))}
+                        {Array.from({length: Math.max(0, 4 - listItems.length)}).map((_, i) => (
+                          <div key={`ph-${i}`} style={{flex: 1, aspectRatio: '2/3', borderRadius: 4, background: 'var(--surface-2)', opacity: 0.4}} />
+                        ))}
+                      </div>
+                      <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between'}}>
+                        <div style={{fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 500, color: 'var(--text)'}}>{list.name}</div>
+                        <div style={{fontSize: 13, color: 'var(--text-muted)'}}>{listItems.length} {listItems.length === 1 ? 'item' : 'items'}</div>
+                      </div>
+                    </button>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center'}}>
+                      <button onClick={() => onReorder(list.id, 'up')} disabled={isFirst} style={{...styles.arrowBtn, width: 32, height: 32, opacity: isFirst ? 0.3 : 1}}><ChevronUp size={18} /></button>
+                      <button onClick={() => onReorder(list.id, 'down')} disabled={isLast} style={{...styles.arrowBtn, width: 32, height: 32, opacity: isLast ? 0.3 : 1}}><ChevronDown size={18} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+              <button onClick={() => setCreating(true)} style={styles.addListBtn}>
+                <Plus size={18} />
+                <span style={{marginLeft: 8}}>New list</span>
+              </button>
+            </>
+          )}
+          {creating && (
+            <Modal onClose={() => { setCreating(false); setName(''); }} title="New list">
+              <input autoFocus value={name} onChange={e => setName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && name.trim()) { onCreate(name.trim()); setCreating(false); setName(''); } }}
+                placeholder="e.g. Documentaries, Date night" style={styles.input} />
+              <button disabled={!name.trim()}
+                onClick={() => { if (name.trim()) { onCreate(name.trim()); setCreating(false); setName(''); } }}
+                style={{...styles.primaryBtn, marginTop: 12, opacity: name.trim() ? 1 : 0.5}}>Create</button>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    // ---------- List Detail ----------
+    function ListDetailView({ list, items, onOpenItem, onReorder, onRename, onDelete }) {
+      const [menu, setMenu] = useState(false);
+      const [renaming, setRenaming] = useState(false);
+      const [newName, setNewName] = useState(list.name);
+      const [confirmDel, setConfirmDel] = useState(false);
+
+      return (
+        <div style={{padding: '8px 12px 24px'}}>
+          <div style={{display: 'flex', justifyContent: 'flex-end', padding: '4px 4px 12px', position: 'relative'}}>
+            <button onClick={() => setMenu(!menu)} style={styles.iconBtn}><MoreVertical size={18} /></button>
+            {menu && (
+              <div style={styles.menu}>
+                <button style={styles.menuItem} onClick={() => { setRenaming(true); setMenu(false); }}><Edit2 size={14} /> Rename list</button>
+                <button style={{...styles.menuItem, color: '#E57373'}} onClick={() => { setConfirmDel(true); setMenu(false); }}><Trash2 size={14} /> Delete list</button>
+              </div>
+            )}
+          </div>
+          {items.length === 0 ? (
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', padding: '40px 20px', textAlign: 'center'}}>
+              <Search size={32} color="var(--text-muted)" style={{opacity: 0.5, marginBottom: 12}} />
+              <div style={{color: 'var(--text-muted)'}}>Nothing in this list yet. Use Search to add something.</div>
+            </div>
+          ) : (
+            items.map((item, idx) => (
+              <ListRow key={item.id} item={item}
+                isFirst={idx === 0} isLast={idx === items.length - 1}
+                onOpen={() => onOpenItem(item.id)}
+                onUp={() => onReorder(item.id, 'up')}
+                onDown={() => onReorder(item.id, 'down')} />
+            ))
+          )}
+          {renaming && (
+            <Modal onClose={() => setRenaming(false)} title="Rename list">
+              <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} style={styles.input} />
+              <button onClick={() => { if (newName.trim()) { onRename(newName.trim()); setRenaming(false); } }}
+                style={{...styles.primaryBtn, marginTop: 12}}>Save</button>
+            </Modal>
+          )}
+          {confirmDel && (
+            <Modal onClose={() => setConfirmDel(false)} title="Delete this list?">
+              <div style={{color: 'var(--text-muted)', marginBottom: 16}}>This will remove "{list.name}" and everything in it. Can't undo.</div>
+              <div style={{display: 'flex', gap: 8}}>
+                <button onClick={() => setConfirmDel(false)} style={{...styles.secondaryBtn, flex: 1}}>Cancel</button>
+                <button onClick={onDelete} style={{...styles.dangerBtn, flex: 1}}>Delete</button>
+              </div>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    function ListRow({ item, isFirst, isLast, onOpen, onUp, onDown }) {
+      return (
+        <div style={styles.listRow}>
+          <button onClick={onOpen} style={styles.listRowInner}>
+            <div style={{width: 64, aspectRatio: '2/3', borderRadius: 4, overflow: 'hidden', background: 'var(--surface-2)', flexShrink: 0}}>
+              {item.posterPath && <img src={`${IMG_BASE}/w200${item.posterPath}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />}
+            </div>
+            <div style={{flex: 1, minWidth: 0, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 8}}>
+              <div style={{display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0}}>
+                <div style={{fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 500, color: 'var(--text)', lineHeight: 1.2, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                  {item.title}
+                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', flexShrink: 0}}>
+                  {item.year && <span>{item.year}</span>}
+                  {item.imdbRating != null ? (
+                    <span style={{display: 'flex', alignItems: 'center', gap: 3}} title="IMDb rating">
+                      <Star size={11} fill="var(--accent)" color="var(--accent)" />{item.imdbRating.toFixed(1)}
+                    </span>
+                  ) : item.voteAverage ? (
+                    <span style={styles.tmdbChip} title="TMDB rating (IMDb rating unavailable)">
+                      TMDB {item.voteAverage.toFixed(1)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)'}}>
+                {item.type === 'movie' ? <Film size={12} /> : <Tv size={12} />}
+                <ProviderRow providers={item.watchProviders?.flatrate || []} size={36} maxShown={5} />
+              </div>
+            </div>
+          </button>
+          <div style={{display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4}}>
+            <button onClick={onUp} disabled={isFirst} style={{...styles.arrowBtn, opacity: isFirst ? 0.3 : 1}}><ChevronUp size={16} /></button>
+            <button onClick={onDown} disabled={isLast} style={{...styles.arrowBtn, opacity: isLast ? 0.3 : 1}}><ChevronDown size={16} /></button>
+          </div>
+        </div>
+      );
+    }
+
+    function ProviderRow({ providers, size = 28, maxShown = 8, emptyLabel = 'No streaming found' }) {
+      if (!providers || providers.length === 0) {
+        return emptyLabel ? <span style={{fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic'}}>{emptyLabel}</span> : null;
+      }
+      const shown = providers.slice(0, maxShown);
+      const extra = providers.length - shown.length;
+      return (
+        <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
+          {shown.map(p => (
+            <img key={p.provider_id} src={`${IMG_BASE}/original${p.logo_path}`}
+              alt={p.provider_name} title={p.provider_name}
+              style={{width: size, height: size, borderRadius: Math.round(size / 6), objectFit: 'cover'}} />
+          ))}
+          {extra > 0 && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>+{extra}</span>}
+        </div>
+      );
+    }
+
+    // ---------- Search Tab ----------
+    function SearchTab({ myLists, onAdd, onCreateList }) {
+      const [q, setQ] = useState('');
+      const [results, setResults] = useState([]);
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState(null);
+      const [peek, setPeek] = useState(null);        // { result, details, loading, error }
+      const [picker, setPicker] = useState(null);    // the result being added (when list picker is open)
+      const debRef = useRef();
+
+      useEffect(() => {
+        if (!q.trim()) { setResults([]); return; }
+        clearTimeout(debRef.current);
+        debRef.current = setTimeout(async () => {
+          setBusy(true); setErr(null);
+          try { const r = await tmdbSearch(q.trim()); setResults(r); }
+          catch (e) { console.error('Search error:', e); setErr(e.message || String(e)); }
+          finally { setBusy(false); }
+        }, 350);
+        return () => clearTimeout(debRef.current);
+      }, [q]);
+
+      // When a search result is tapped, load its details (streaming info, synopsis, rating).
+      async function openPeek(result) {
+        setPeek({ result, details: null, loading: true, error: null });
+        try {
+          const details = await tmdbDetails(result.id, result.media_type);
+          const normalized = normalizeItem(details, result.media_type);
+          // Optional IMDb rating enrichment — don't block the peek on this.
+          const ratingResult = await omdbRating(normalized.imdbId);
+          if (ratingResult.ok) normalized.imdbRating = ratingResult.rating;
+          setPeek(prev => prev && prev.result.id === result.id
+            ? { ...prev, details: normalized, loading: false }
+            : prev);
+        } catch (e) {
+          console.error('Peek details fetch failed:', e);
+          setPeek(prev => prev && prev.result.id === result.id
+            ? { ...prev, loading: false, error: e.message || 'Failed to load details' }
+            : prev);
+        }
+      }
+
+      return (
+        <div style={{padding: '12px 16px 24px'}}>
+          <div style={{position: 'relative', marginBottom: 16}}>
+            <Search size={16} style={{position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none'}} />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+              placeholder="Search movies & TV" style={{...styles.input, paddingLeft: 36, paddingRight: q ? 40 : 14}} />
+            {q && (
+              <button
+                onClick={() => { setQ(''); setResults([]); setErr(null); }}
+                aria-label="Clear search"
+                style={{position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 30, height: 30, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'}}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          {busy && <div style={{display: 'flex', justifyContent: 'center', padding: 20}}><Loader2 size={18} className="spin" color="var(--accent)" /></div>}
+          {err && <div style={{color: '#E57373', padding: '12px 14px', fontSize: 13, lineHeight: 1.5, background: 'rgba(229, 115, 115, 0.08)', border: '1px solid rgba(229, 115, 115, 0.25)', borderRadius: 8, wordBreak: 'break-word'}}>{err}</div>}
+          {!busy && q && results.length === 0 && !err && (
+            <div style={{color: 'var(--text-muted)', padding: 16, textAlign: 'center'}}>No results</div>
+          )}
+          {results.map(r => (
+            <SearchResultRow key={`${r.media_type}-${r.id}`} result={r} onPick={() => openPeek(r)} />
+          ))}
+
+          {peek && (
+            <SearchPeekModal
+              peek={peek}
+              onClose={() => setPeek(null)}
+              onAdd={() => { setPicker(peek.result); setPeek(null); }}
+            />
+          )}
+
+          {picker && (
+            <Modal onClose={() => setPicker(null)} title={`Add "${picker.title || picker.name}" to…`}>
+              {myLists.length === 0 ? (
+                <NewListInline onCreate={(name) => { const id = onCreateList(name); onAdd(picker, id); setPicker(null); }} />
+              ) : (
+                <>
+                  {myLists.map(l => (
+                    <button key={l.id} onClick={() => { onAdd(picker, l.id); setPicker(null); }} style={styles.pickerRow}>
+                      <ListIcon size={16} color="var(--text-muted)" />
+                      <span>{l.name}</span>
+                    </button>
+                  ))}
+                  <div style={{height: 1, background: 'var(--border)', margin: '8px 0'}} />
+                  <NewListInline onCreate={(name) => { const id = onCreateList(name); onAdd(picker, id); setPicker(null); }} />
+                </>
+              )}
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    // Preview modal shown when tapping a search result — fetches and displays streaming info
+    // and an IMDb rating so the user can decide before adding.
+    function SearchPeekModal({ peek, onClose, onAdd }) {
+      const r = peek.result;
+      const d = peek.details;
+      const title = (d && d.title) || r.title || r.name;
+      const year = d ? d.year : (r.release_date || r.first_air_date || '').slice(0, 4);
+      const type = r.media_type;
+      const hasProviders = d && ((d.watchProviders?.flatrate?.length || 0) + (d.watchProviders?.rent?.length || 0) + (d.watchProviders?.buy?.length || 0) > 0);
+
+      return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+          <div style={styles.sheet} onClick={e => e.stopPropagation()}>
+            <div style={{position: 'relative', aspectRatio: '16/9', background: 'var(--surface-2)', overflow: 'hidden'}}>
+              {d && d.backdropPath && (
+                <img src={`${IMG_BASE}/w780${d.backdropPath}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+              )}
+              <div style={{position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, var(--bg) 100%)'}} />
+              <button onClick={onClose} style={{...styles.iconBtn, position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)'}}><X size={18} /></button>
+            </div>
+
+            <div style={{padding: '0 20px 28px', marginTop: -60, position: 'relative'}}>
+              <div style={{display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 20}}>
+                <div style={{width: 100, aspectRatio: '2/3', borderRadius: 6, overflow: 'hidden', background: 'var(--surface-2)', flexShrink: 0, boxShadow: '0 12px 32px rgba(0,0,0,0.5)'}}>
+                  {r.poster_path && <img src={`${IMG_BASE}/w300${r.poster_path}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />}
+                </div>
+                <div style={{flex: 1, minWidth: 0, paddingBottom: 4}}>
+                  <div style={{fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, color: 'var(--text)', lineHeight: 1.15, marginBottom: 8}}>{title}</div>
+                  <div style={{display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--text-muted)', flexWrap: 'wrap'}}>
+                    {type === 'movie' ? <Film size={13} /> : <Tv size={13} />}
+                    {year && <span>{year}</span>}
+                    {d && d.imdbRating != null ? (
+                      <span style={{display: 'flex', alignItems: 'center', gap: 3}} title="IMDb rating">
+                        <Star size={12} fill="var(--accent)" color="var(--accent)" />{d.imdbRating.toFixed(1)}
+                      </span>
+                    ) : d && d.voteAverage ? (
+                      <span style={styles.tmdbChip} title="TMDB rating (IMDb rating unavailable)">
+                        TMDB {d.voteAverage.toFixed(1)}
+                      </span>
+                    ) : null}
+                    {d && d.runtime && <span>{d.runtime}m</span>}
+                    {d && d.numSeasons && <span>{d.numSeasons} {d.numSeasons === 1 ? 'season' : 'seasons'}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {d && d.genres?.length > 0 && (
+                <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20}}>
+                  {d.genres.map(g => <span key={g} style={styles.genreChip}>{g}</span>)}
+                </div>
+              )}
+
+              <div style={styles.sectionLabel}>Where to stream</div>
+              {peek.loading ? (
+                <div style={{display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: 13, marginBottom: 16}}>
+                  <Loader2 size={16} className="spin" color="var(--accent)" /> Checking availability…
+                </div>
+              ) : peek.error ? (
+                <div style={{color: '#E57373', fontSize: 13, marginBottom: 16}}>Couldn't load streaming info.</div>
+              ) : hasProviders ? (
+                <>
+                  {d.watchProviders.flatrate?.length > 0 && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Included with subscription</div>
+                      <ProviderRow providers={d.watchProviders.flatrate} size={40} emptyLabel="" />
+                    </div>
+                  )}
+                  {d.watchProviders.rent?.length > 0 && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Rent</div>
+                      <ProviderRow providers={d.watchProviders.rent} size={40} emptyLabel="" />
+                    </div>
+                  )}
+                  {d.watchProviders.buy?.length > 0 && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Buy</div>
+                      <ProviderRow providers={d.watchProviders.buy} size={40} emptyLabel="" />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{color: 'var(--text-muted)', fontSize: 14, marginBottom: 16}}>No US streaming options found right now.</div>
+              )}
+
+              {d && d.overview && (
+                <>
+                  <div style={{...styles.sectionLabel, marginTop: 24}}>Synopsis</div>
+                  <div style={{color: 'var(--text)', lineHeight: 1.6, fontSize: 14}}>{d.overview}</div>
+                </>
+              )}
+
+              <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 28}}>
+                <button onClick={onAdd} style={styles.primaryBtn}>
+                  <Plus size={16} style={{marginRight: 6, verticalAlign: 'text-bottom'}} /> Add to a list
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function NewListInline({ onCreate }) {
+      const [name, setName] = useState('');
+      return (
+        <div style={{display: 'flex', gap: 8}}>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Or create new list" style={{...styles.input, flex: 1}} />
+          <button disabled={!name.trim()} onClick={() => onCreate(name.trim())}
+            style={{...styles.primaryBtn, padding: '0 16px', width: 'auto', opacity: name.trim() ? 1 : 0.5}}>Add</button>
+        </div>
+      );
+    }
+
+    function SearchResultRow({ result, onPick }) {
+      const title = result.title || result.name;
+      const year = (result.release_date || result.first_air_date || '').slice(0, 4);
+      return (
+        <button onClick={onPick} style={styles.searchRow}>
+          <div style={{width: 50, aspectRatio: '2/3', borderRadius: 4, overflow: 'hidden', background: 'var(--surface-2)', flexShrink: 0}}>
+            {result.poster_path && <img src={`${IMG_BASE}/w200${result.poster_path}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />}
+          </div>
+          <div style={{flex: 1, minWidth: 0, textAlign: 'left'}}>
+            <div style={{fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{title}</div>
+            <div style={{display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginTop: 4}}>
+              {result.media_type === 'movie' ? <Film size={12} /> : <Tv size={12} />}
+              <span>{result.media_type === 'movie' ? 'Movie' : 'TV'}</span>
+              {year && <span>· {year}</span>}
+            </div>
+          </div>
+          <Plus size={20} color="var(--accent)" />
+        </button>
+      );
+    }
+
+    // ---------- Profile Tab ----------
+    function ProfileTab({ profiles, current, onSwitch, onAdd, onRename, onDelete }) {
+      const [adding, setAdding] = useState(false);
+      const [name, setName] = useState('');
+      const [editing, setEditing] = useState(null);
+      const [confirmDel, setConfirmDel] = useState(null);
+
+      return (
+        <div style={{padding: '16px'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 16, padding: '20px 16px', background: 'var(--surface)', borderRadius: 12, marginBottom: 20}}>
+            <div style={{...styles.avatar, backgroundColor: current.color, width: 56, height: 56, fontSize: 22}}>
+              {current.name[0].toUpperCase()}
+            </div>
+            <div>
+              <div style={{fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em'}}>Currently watching as</div>
+              <div style={{fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, color: 'var(--text)'}}>{current.name}</div>
+            </div>
+          </div>
+
+          <div style={{fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0 4px 8px'}}>Switch profile</div>
+          {profiles.map(p => (
+            <div key={p.id} style={styles.profileRow}>
+              <button onClick={() => onSwitch(p.id)} style={{...styles.profileRowInner, opacity: p.id === current.id ? 1 : 0.8}}>
+                <div style={{...styles.avatar, backgroundColor: p.color, width: 36, height: 36, fontSize: 15}}>
+                  {p.name[0].toUpperCase()}
+                </div>
+                <span style={{flex: 1, textAlign: 'left', fontSize: 16, color: 'var(--text)'}}>{p.name}</span>
+                {p.id === current.id && <Check size={16} color="var(--accent)" />}
+              </button>
+              <button onClick={() => setEditing(p)} style={styles.iconBtn}><Edit2 size={14} /></button>
+              {profiles.length > 1 && <button onClick={() => setConfirmDel(p)} style={styles.iconBtn}><Trash2 size={14} /></button>}
+            </div>
+          ))}
+          <button onClick={() => setAdding(true)} style={styles.addListBtn}>
+            <UserPlus size={18} />
+            <span style={{marginLeft: 8}}>Add profile</span>
+          </button>
+
+          {adding && (
+            <Modal onClose={() => { setAdding(false); setName(''); }} title="New profile">
+              <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={styles.input} />
+              <button disabled={!name.trim()}
+                onClick={() => { onAdd(name.trim()); setAdding(false); setName(''); }}
+                style={{...styles.primaryBtn, marginTop: 12, opacity: name.trim() ? 1 : 0.5}}>Add</button>
+            </Modal>
+          )}
+          {editing && (
+            <Modal onClose={() => setEditing(null)} title="Rename profile">
+              <input autoFocus defaultValue={editing.name} onChange={e => setEditing({...editing, name: e.target.value})} style={styles.input} />
+              <button onClick={() => { onRename(editing.id, editing.name.trim()); setEditing(null); }}
+                style={{...styles.primaryBtn, marginTop: 12}}>Save</button>
+            </Modal>
+          )}
+          {confirmDel && (
+            <Modal onClose={() => setConfirmDel(null)} title={`Delete "${confirmDel.name}"?`}>
+              <div style={{color: 'var(--text-muted)', marginBottom: 16}}>All of their lists and items will be removed. Can't undo.</div>
+              <div style={{display: 'flex', gap: 8}}>
+                <button onClick={() => setConfirmDel(null)} style={{...styles.secondaryBtn, flex: 1}}>Cancel</button>
+                <button onClick={() => { onDelete(confirmDel.id); setConfirmDel(null); }} style={{...styles.dangerBtn, flex: 1}}>Delete</button>
+              </div>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    // ---------- Item Detail Modal ----------
+    function ItemDetailModal({ item, myLists, onClose, onRemove, onCopyToList, onBackgroundRefresh }) {
+      const [confirmDel, setConfirmDel] = useState(false);
+      const [copyPicker, setCopyPicker] = useState(false);
+      const imdbUrl = item.imdbId ? `https://www.imdb.com/title/${item.imdbId}/` : null;
+      const hasProviders = (item.watchProviders?.flatrate?.length || 0) + (item.watchProviders?.rent?.length || 0) + (item.watchProviders?.buy?.length || 0) > 0;
+      const otherLists = (myLists || []).filter(l => l.id !== item.listId);
+
+      // Smart auto-refresh: if the item's cached data is >24h old, re-fetch silently in the background.
+      // Runs once per open (keyed off item.id so switching items re-evaluates).
+      const STALE_MS = 24 * 60 * 60 * 1000;
+      useEffect(() => {
+        const age = Date.now() - (item.updatedAt || 0);
+        if (age > STALE_MS && typeof onBackgroundRefresh === 'function') {
+          onBackgroundRefresh();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [item.id]);
+
+      return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+          <div style={styles.sheet} onClick={e => e.stopPropagation()}>
+            <div style={{position: 'relative', aspectRatio: '16/9', background: 'var(--surface-2)', overflow: 'hidden'}}>
+              {item.backdropPath && (
+                <img src={`${IMG_BASE}/w780${item.backdropPath}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+              )}
+              <div style={{position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, var(--bg) 100%)'}} />
+              <button onClick={onClose} style={{...styles.iconBtn, position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)'}}><X size={18} /></button>
+            </div>
+            <div style={{padding: '0 20px 28px', marginTop: -60, position: 'relative'}}>
+              <div style={{display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 20}}>
+                <div style={{width: 100, aspectRatio: '2/3', borderRadius: 6, overflow: 'hidden', background: 'var(--surface-2)', flexShrink: 0, boxShadow: '0 12px 32px rgba(0,0,0,0.5)'}}>
+                  {item.posterPath && <img src={`${IMG_BASE}/w300${item.posterPath}`} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />}
+                </div>
+                <div style={{flex: 1, minWidth: 0, paddingBottom: 4}}>
+                  <div style={{fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, color: 'var(--text)', lineHeight: 1.15, marginBottom: 8}}>{item.title}</div>
+                  <div style={{display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--text-muted)', flexWrap: 'wrap'}}>
+                    {item.type === 'movie' ? <Film size={13} /> : <Tv size={13} />}
+                    {item.year && <span>{item.year}</span>}
+                    {item.imdbRating != null ? (
+                      <span style={{display: 'flex', alignItems: 'center', gap: 3}} title="IMDb rating">
+                        <Star size={12} fill="var(--accent)" color="var(--accent)" />{item.imdbRating.toFixed(1)}
+                      </span>
+                    ) : item.voteAverage ? (
+                      <span style={styles.tmdbChip} title="TMDB rating (IMDb rating unavailable)">
+                        TMDB {item.voteAverage.toFixed(1)}
+                      </span>
+                    ) : null}
+                    {item.runtime && <span>{item.runtime}m</span>}
+                    {item.numSeasons && <span>{item.numSeasons} {item.numSeasons === 1 ? 'season' : 'seasons'}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {item.genres?.length > 0 && (
+                <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20}}>
+                  {item.genres.map(g => <span key={g} style={styles.genreChip}>{g}</span>)}
+                </div>
+              )}
+
+              <div style={styles.sectionLabel}>Where to stream</div>
+              {hasProviders ? (
+                <>
+                  {item.watchProviders.flatrate?.length > 0 && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Included with subscription</div>
+                      <ProviderRow providers={item.watchProviders.flatrate} size={40} emptyLabel="" />
+                    </div>
+                  )}
+                  {item.watchProviders.rent?.length > 0 && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Rent</div>
+                      <ProviderRow providers={item.watchProviders.rent} size={40} emptyLabel="" />
+                    </div>
+                  )}
+                  {item.watchProviders.buy?.length > 0 && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Buy</div>
+                      <ProviderRow providers={item.watchProviders.buy} size={40} emptyLabel="" />
+                    </div>
+                  )}
+                  {item.watchProviders.link && (
+                    <a href={item.watchProviders.link} target="_blank" rel="noopener noreferrer" style={styles.inlineLink}>
+                      See all options on JustWatch <ExternalLink size={12} />
+                    </a>
+                  )}
+                </>
+              ) : (
+                <div style={{color: 'var(--text-muted)', fontSize: 14, marginBottom: 16}}>No US streaming options found right now.</div>
+              )}
+
+              {item.overview && (
+                <>
+                  <div style={{...styles.sectionLabel, marginTop: 24}}>Synopsis</div>
+                  <div style={{color: 'var(--text)', lineHeight: 1.6, fontSize: 14}}>{item.overview}</div>
+                </>
+              )}
+
+              <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 28}}>
+                {imdbUrl && (
+                  <a href={imdbUrl} target="_blank" rel="noopener noreferrer" style={styles.imdbBtn}>
+                    View on IMDb <ExternalLink size={14} />
+                  </a>
+                )}
+                {otherLists.length > 0 && (
+                  <button onClick={() => setCopyPicker(true)} style={styles.secondaryBtn}>
+                    <Copy size={14} /> Copy to another list
+                  </button>
+                )}
+                <button onClick={() => setConfirmDel(true)} style={styles.dangerBtn}>
+                  <Trash2 size={14} /> Remove from list
+                </button>
+              </div>
+            </div>
+
+            {copyPicker && (
+              <Modal onClose={() => setCopyPicker(false)} title={`Copy "${item.title}" to…`}>
+                {otherLists.map(l => (
+                  <button key={l.id} onClick={() => { onCopyToList(l.id); setCopyPicker(false); }} style={styles.pickerRow}>
+                    <ListIcon size={16} color="var(--text-muted)" />
+                    <span>{l.name}</span>
+                  </button>
+                ))}
+              </Modal>
+            )}
+
+            {confirmDel && (
+              <Modal onClose={() => setConfirmDel(false)} title="Remove from list?">
+                <div style={{color: 'var(--text-muted)', marginBottom: 16}}>You can always add it back by searching again.</div>
+                <div style={{display: 'flex', gap: 8}}>
+                  <button onClick={() => setConfirmDel(false)} style={{...styles.secondaryBtn, flex: 1}}>Cancel</button>
+                  <button onClick={onRemove} style={{...styles.dangerBtn, flex: 1}}>Remove</button>
+                </div>
+              </Modal>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ---------- Modal ----------
+    function Modal({ children, title, onClose }) {
+      return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+          <div style={styles.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16}}>
+              <div style={{fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, color: 'var(--text)'}}>{title}</div>
+              <button onClick={onClose} style={styles.iconBtn}><X size={16} /></button>
+            </div>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    // ---------- Styles ----------
+    const styles = {
+      app: { maxWidth: 480, margin: '0 auto', minHeight: '100vh', paddingBottom: 72, position: 'relative' },
+      topBar: {
+        display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+        borderBottom: '1px solid var(--border)', background: 'rgba(10, 15, 28, 0.92)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        position: 'sticky', top: 0, zIndex: 10,
+      },
+      main: { minHeight: 'calc(100vh - 128px)' },
+      bottomNav: {
+        position: 'fixed', bottom: 0, left: 0, right: 0, maxWidth: 480, margin: '0 auto',
+        display: 'flex', background: 'rgba(10, 15, 28, 0.95)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        borderTop: '1px solid var(--border)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0)',
+      },
+      navBtn: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0 12px', gap: 2 },
+      avatar: {
+        borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Fraunces', serif", fontWeight: 500, color: '#0A0F1C', flexShrink: 0,
+      },
+      profileTile: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 8px', borderRadius: 10 },
+      label: { display: 'block', fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 },
+      input: {
+        width: '100%', padding: '12px 14px', background: 'var(--surface)',
+        border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)',
+        fontSize: 15, outline: 'none', transition: 'border-color 0.15s',
+      },
+      primaryBtn: {
+        width: '100%', padding: '13px 20px', background: 'var(--accent)',
+        color: '#0A0F1C', borderRadius: 8, fontSize: 15, fontWeight: 600,
+      },
+      secondaryBtn: {
+        padding: '11px 16px', background: 'var(--surface-2)', color: 'var(--text)',
+        borderRadius: 8, fontSize: 14, fontWeight: 500,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        border: '1px solid var(--border)',
+      },
+      dangerBtn: {
+        padding: '11px 16px', background: 'transparent', color: '#E57373',
+        borderRadius: 8, fontSize: 14, fontWeight: 500,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        border: '1px solid rgba(229, 115, 115, 0.3)',
+      },
+      iconBtn: {
+        width: 32, height: 32, borderRadius: 8, display: 'flex',
+        alignItems: 'center', justifyContent: 'center', color: 'var(--text)',
+      },
+      arrowBtn: {
+        width: 28, height: 24, borderRadius: 4, display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'var(--surface-2)', color: 'var(--text-muted)',
+      },
+      listCard: {
+        display: 'block', width: '100%', textAlign: 'left', padding: 14,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 12, marginBottom: 12,
+      },
+      addListBtn: {
+        width: '100%', padding: '14px 16px', background: 'transparent',
+        border: '1px dashed var(--border)', borderRadius: 10,
+        color: 'var(--text-muted)', fontSize: 14, fontWeight: 500,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 8,
+      },
+      listRow: {
+        display: 'flex', alignItems: 'center', gap: 4,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: 10, marginBottom: 8,
+      },
+      listRowInner: { display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 0 },
+      searchRow: {
+        width: '100%', display: 'flex', gap: 12, alignItems: 'center',
+        padding: 10, background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 10, marginBottom: 8, textAlign: 'left',
+      },
+      profileRow: {
+        display: 'flex', alignItems: 'center', gap: 4,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: 8, marginBottom: 8,
+      },
+      profileRowInner: { display: 'flex', gap: 12, alignItems: 'center', flex: 1, padding: 6 },
+      pickerRow: {
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+        padding: '11px 12px', background: 'var(--surface-2)', borderRadius: 8,
+        fontSize: 15, color: 'var(--text)', textAlign: 'left', marginBottom: 6,
+      },
+      genreChip: {
+        fontSize: 12, padding: '4px 10px', background: 'var(--surface-2)',
+        border: '1px solid var(--border)', borderRadius: 999, color: 'var(--text-muted)',
+      },
+      tmdbChip: {
+        fontSize: 11, padding: '2px 8px', background: 'var(--surface-2)',
+        border: '1px solid var(--border)', borderRadius: 999,
+        color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.02em',
+        whiteSpace: 'nowrap',
+      },
+      sectionLabel: {
+        fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase',
+        letterSpacing: '0.1em', marginBottom: 10, fontWeight: 500,
+      },
+      inlineLink: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--accent)' },
+      imdbBtn: {
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        padding: '12px 16px', background: '#F5C518', color: '#000',
+        borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none',
+      },
+      modalOverlay: {
+        position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16, zIndex: 100, animation: 'fadeIn 0.15s ease',
+      },
+      modalBox: {
+        width: '100%', maxWidth: 400, background: 'var(--surface)',
+        border: '1px solid var(--border)', borderRadius: 14, padding: 20,
+        animation: 'slideUp 0.18s ease',
+      },
+      sheet: {
+        width: '100%', maxWidth: 460, maxHeight: '92vh',
+        background: 'var(--bg)', border: '1px solid var(--border)',
+        borderRadius: 14, overflow: 'auto', animation: 'slideUp 0.2s ease',
+      },
+      menu: {
+        position: 'absolute', top: 40, right: 4,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        zIndex: 20, minWidth: 160,
+      },
+      menuItem: {
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', padding: '10px 12px', fontSize: 14, color: 'var(--text)',
+        textAlign: 'left', borderRadius: 6,
+      },
+      toast: {
+        position: 'fixed', bottom: 88, left: '50%', transform: 'translateX(-50%)',
+        background: 'var(--text)', color: 'var(--bg)', padding: '10px 18px',
+        borderRadius: 999, fontSize: 14, fontWeight: 500, zIndex: 200,
+        boxShadow: '0 8px 20px rgba(0,0,0,0.3)', animation: 'slideUp 0.2s ease',
+      },
+      saveErrorBanner: {
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+        padding: '12px 16px', background: 'rgba(229, 115, 115, 0.12)',
+        borderBottom: '1px solid rgba(229, 115, 115, 0.3)',
+        color: '#F5D3D3', fontSize: 13, lineHeight: 1.4,
+      },
+    };
+
+    // ---------- Render ----------
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
