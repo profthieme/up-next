@@ -873,19 +873,35 @@
       );
     }
 
-    function ProviderRow({ providers, size = 28, maxShown = 8, emptyLabel = 'No streaming found' }) {
+    function ProviderRow({ providers, size = 28, maxShown = 8, emptyLabel = 'No streaming found', justWatchUrl }) {
       if (!providers || providers.length === 0) {
         return emptyLabel ? <span style={{fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic'}}>{emptyLabel}</span> : null;
       }
       const shown = providers.slice(0, maxShown);
       const extra = providers.length - shown.length;
+      const radius = Math.round(size / 6);
       return (
         <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
-          {shown.map(p => (
-            <img key={p.provider_id} src={`${IMG_BASE}/original${p.logo_path}`}
-              alt={p.provider_name} title={p.provider_name}
-              style={{width: size, height: size, borderRadius: Math.round(size / 6), objectFit: 'cover'}} />
-          ))}
+          {shown.map(p => {
+            const logo = (
+              <img src={`${IMG_BASE}/original${p.logo_path}`}
+                alt={p.provider_name}
+                style={{width: size, height: size, borderRadius: radius, objectFit: 'cover', display: 'block'}} />
+            );
+            return justWatchUrl ? (
+              <a key={p.provider_id}
+                 href={justWatchUrl}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 title={`${p.provider_name} — open on JustWatch`}
+                 onClick={e => e.stopPropagation()}
+                 style={{display: 'block', borderRadius: radius, lineHeight: 0}}>
+                {logo}
+              </a>
+            ) : (
+              <span key={p.provider_id} title={p.provider_name} style={{lineHeight: 0}}>{logo}</span>
+            );
+          })}
           {extra > 0 && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>+{extra}</span>}
         </div>
       );
@@ -1052,19 +1068,19 @@
                   {d.watchProviders.flatrate?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Included with subscription</div>
-                      <ProviderRow providers={d.watchProviders.flatrate} size={40} emptyLabel="" />
+                      <ProviderRow providers={d.watchProviders.flatrate} size={40} emptyLabel="" justWatchUrl={d.watchProviders.link} />
                     </div>
                   )}
                   {d.watchProviders.rent?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Rent</div>
-                      <ProviderRow providers={d.watchProviders.rent} size={40} emptyLabel="" />
+                      <ProviderRow providers={d.watchProviders.rent} size={40} emptyLabel="" justWatchUrl={d.watchProviders.link} />
                     </div>
                   )}
                   {d.watchProviders.buy?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Buy</div>
-                      <ProviderRow providers={d.watchProviders.buy} size={40} emptyLabel="" />
+                      <ProviderRow providers={d.watchProviders.buy} size={40} emptyLabel="" justWatchUrl={d.watchProviders.link} />
                     </div>
                   )}
                 </>
@@ -1254,19 +1270,19 @@
                   {item.watchProviders.flatrate?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Included with subscription</div>
-                      <ProviderRow providers={item.watchProviders.flatrate} size={40} emptyLabel="" />
+                      <ProviderRow providers={item.watchProviders.flatrate} size={40} emptyLabel="" justWatchUrl={item.watchProviders.link} />
                     </div>
                   )}
                   {item.watchProviders.rent?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Rent</div>
-                      <ProviderRow providers={item.watchProviders.rent} size={40} emptyLabel="" />
+                      <ProviderRow providers={item.watchProviders.rent} size={40} emptyLabel="" justWatchUrl={item.watchProviders.link} />
                     </div>
                   )}
                   {item.watchProviders.buy?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Buy</div>
-                      <ProviderRow providers={item.watchProviders.buy} size={40} emptyLabel="" />
+                      <ProviderRow providers={item.watchProviders.buy} size={40} emptyLabel="" justWatchUrl={item.watchProviders.link} />
                     </div>
                   )}
                   {item.watchProviders.link && (
@@ -1290,6 +1306,15 @@
                 {imdbUrl && (
                   <a href={imdbUrl} target="_blank" rel="noopener noreferrer" style={styles.imdbBtn}>
                     View on IMDb <ExternalLink size={14} />
+                  </a>
+                )}
+                {item.type === 'tv' && (
+                  <a
+                    href={`https://next-episode.net/search?search=${encodeURIComponent(item.title)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={styles.nextEpisodeBtn}>
+                    View on Next Episode <ExternalLink size={14} />
                   </a>
                 )}
                 {otherLists.length > 0 && (
@@ -1448,6 +1473,11 @@
       imdbBtn: {
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
         padding: '12px 16px', background: '#F5C518', color: '#000',
+        borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none',
+      },
+      nextEpisodeBtn: {
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        padding: '12px 16px', background: 'var(--accent)', color: '#0A0F1C',
         borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none',
       },
       modalOverlay: {
