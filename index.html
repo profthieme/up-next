@@ -249,6 +249,8 @@
         genres: (tmdbData.genres || []).map(g => g.name),
         watchProviders: {
           flatrate: providers.flatrate || [],
+          free: providers.free || [],
+          ads: providers.ads || [],
           rent: providers.rent || [],
           buy: providers.buy || [],
           link: providers.link || null,
@@ -1012,7 +1014,7 @@
       const title = (d && d.title) || r.title || r.name;
       const year = d ? d.year : (r.release_date || r.first_air_date || '').slice(0, 4);
       const type = r.media_type;
-      const hasProviders = d && ((d.watchProviders?.flatrate?.length || 0) + (d.watchProviders?.rent?.length || 0) + (d.watchProviders?.buy?.length || 0) > 0);
+      const hasProviders = d && ((d.watchProviders?.free?.length || 0) + (d.watchProviders?.ads?.length || 0) + (d.watchProviders?.flatrate?.length || 0) > 0);
 
       return (
         <div style={styles.modalOverlay} onClick={onClose}>
@@ -1072,22 +1074,21 @@
                 <div style={{color: '#E57373', fontSize: 13, marginBottom: 16}}>Couldn't load streaming info.</div>
               ) : hasProviders ? (
                 <>
+                  {(d.watchProviders.free?.length > 0 || d.watchProviders.ads?.length > 0) && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Free</div>
+                      <ProviderRow
+                        providers={[...(d.watchProviders.free || []), ...(d.watchProviders.ads || [])]}
+                        size={40}
+                        emptyLabel=""
+                        justWatchUrl={d.watchProviders.link} />
+                    </div>
+                  )}
                   {d.watchProviders.flatrate?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Included with subscription</div>
                       <ProviderRow providers={d.watchProviders.flatrate} size={40} emptyLabel="" justWatchUrl={d.watchProviders.link} />
                     </div>
-                  )}
-                  {d.watchProviders.rent?.length > 0 && (
-                    <div style={{marginBottom: 16}}>
-                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Rent</div>
-                      <ProviderRow providers={d.watchProviders.rent} size={40} emptyLabel="" justWatchUrl={d.watchProviders.link} />
-                    </div>
-                  )}
-                  {d.watchProviders.link && (
-                    <a href={d.watchProviders.link} target="_blank" rel="noopener noreferrer" style={styles.justWatchBtn}>
-                      See all options on JustWatch <ExternalLink size={14} />
-                    </a>
                   )}
                 </>
               ) : (
@@ -1098,6 +1099,11 @@
                 <button onClick={onAdd} style={styles.primaryBtn}>
                   <Plus size={16} style={{marginRight: 6, verticalAlign: 'text-bottom'}} /> Add to a list
                 </button>
+                {d && d.watchProviders?.link && (
+                  <a href={d.watchProviders.link} target="_blank" rel="noopener noreferrer" style={styles.justWatchBtn}>
+                    See all options on JustWatch <ExternalLink size={14} />
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -1208,7 +1214,7 @@
       const [confirmDel, setConfirmDel] = useState(false);
       const [copyPicker, setCopyPicker] = useState(false);
       const imdbUrl = item.imdbId ? `https://www.imdb.com/title/${item.imdbId}/` : null;
-      const hasProviders = (item.watchProviders?.flatrate?.length || 0) + (item.watchProviders?.rent?.length || 0) + (item.watchProviders?.buy?.length || 0) > 0;
+      const hasProviders = (item.watchProviders?.free?.length || 0) + (item.watchProviders?.ads?.length || 0) + (item.watchProviders?.flatrate?.length || 0) > 0;
       const otherLists = (myLists || []).filter(l => l.id !== item.listId);
 
       // Smart auto-refresh: if the item's cached data is >24h old, re-fetch silently in the background.
@@ -1273,22 +1279,21 @@
               <div style={styles.sectionLabel}>Where to stream</div>
               {hasProviders ? (
                 <>
+                  {(item.watchProviders.free?.length > 0 || item.watchProviders.ads?.length > 0) && (
+                    <div style={{marginBottom: 16}}>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Free</div>
+                      <ProviderRow
+                        providers={[...(item.watchProviders.free || []), ...(item.watchProviders.ads || [])]}
+                        size={40}
+                        emptyLabel=""
+                        justWatchUrl={item.watchProviders.link} />
+                    </div>
+                  )}
                   {item.watchProviders.flatrate?.length > 0 && (
                     <div style={{marginBottom: 16}}>
                       <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Included with subscription</div>
                       <ProviderRow providers={item.watchProviders.flatrate} size={40} emptyLabel="" justWatchUrl={item.watchProviders.link} />
                     </div>
-                  )}
-                  {item.watchProviders.rent?.length > 0 && (
-                    <div style={{marginBottom: 16}}>
-                      <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 8}}>Rent</div>
-                      <ProviderRow providers={item.watchProviders.rent} size={40} emptyLabel="" justWatchUrl={item.watchProviders.link} />
-                    </div>
-                  )}
-                  {item.watchProviders.link && (
-                    <a href={item.watchProviders.link} target="_blank" rel="noopener noreferrer" style={styles.justWatchBtn}>
-                      See all options on JustWatch <ExternalLink size={14} />
-                    </a>
                   )}
                 </>
               ) : (
@@ -1296,6 +1301,11 @@
               )}
 
               <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginTop: 28}}>
+                {item.watchProviders?.link && (
+                  <a href={item.watchProviders.link} target="_blank" rel="noopener noreferrer" style={styles.justWatchBtn}>
+                    See all options on JustWatch <ExternalLink size={14} />
+                  </a>
+                )}
                 {imdbUrl && (
                   <a href={imdbUrl} target="_blank" rel="noopener noreferrer" style={styles.imdbBtn}>
                     View on IMDb <ExternalLink size={14} />
@@ -1472,7 +1482,6 @@
         padding: '12px 16px', background: 'var(--surface-2)', color: 'var(--text)',
         border: '1px solid var(--border)', borderRadius: 8,
         fontSize: 14, fontWeight: 500, textDecoration: 'none',
-        marginTop: 4,
       },
       nextEpisodeBtn: {
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
