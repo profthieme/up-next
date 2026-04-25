@@ -863,7 +863,11 @@
               </div>
               <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)'}}>
                 {item.type === 'movie' ? <Film size={12} /> : <Tv size={12} />}
-                <ProviderRow providers={item.watchProviders?.flatrate || []} size={36} maxShown={5} />
+                <ProviderRow providers={[
+                  ...(item.watchProviders?.free || []),
+                  ...(item.watchProviders?.ads || []),
+                  ...(item.watchProviders?.flatrate || []),
+                ]} size={36} maxShown={5} />
               </div>
             </div>
           </button>
