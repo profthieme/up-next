@@ -1,6 +1,6 @@
 {
-  "name": "Up Next — Family Watchlist",
-  "short_name": "Up Next",
+  "name": "Coming Soon… — Family Watchlist",
+  "short_name": "Coming Soon…",
   "description": "Keep track of shows, movies, and documentaries to watch, and where to stream them.",
   "start_url": "./",
   "display": "standalone",
